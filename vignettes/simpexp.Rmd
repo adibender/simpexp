@@ -167,7 +167,7 @@ model.
 ## Where to go next
 
 * `vignette("time-scales")` -- which time scale a hazard may depend on, and
-  how that decides whether the process is Markov, semi-Markov or neither.
+  how that decides whether the process is Markov, semi-Markov or non-Markov.
 * `vignette("censoring")` -- administrative, random and covariate-dependent
   censoring.
 * `vignette("validation")` -- the same data-generating process simulated with

@@ -30,7 +30,7 @@
 #'     interval.}
 #' }
 #' A process whose hazards use only `t` is Markov; one that uses `t_sojourn`
-#' is semi-Markov; one that uses the history features is neither.
+#' is semi-Markov; one that uses the history features is non-Markov.
 #'
 #' @name time_scales
 NULL

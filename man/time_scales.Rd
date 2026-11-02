@@ -37,6 +37,6 @@ the current state.}
 interval.}
 }
 A process whose hazards use only \code{t} is Markov; one that uses \code{t_sojourn}
-is semi-Markov; one that uses the history features is neither.
+is semi-Markov; one that uses the history features is non-Markov.
 }
 
