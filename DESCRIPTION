@@ -1,0 +1,31 @@
+Package: simpexp
+Title: Simulate Event Histories from Piecewise Exponential Hazards
+Version: 0.0.0.9000
+Authors@R: c(
+    person("Andreas", "Bender", , "bender.at.R@gmail.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0001-5628-8611"))
+  )
+Description: Simulates single-event, competing-risks and multi-state event
+    histories from hazards that are piecewise constant on a user-supplied time
+    grid. Each transition is specified by a formula for its log-hazard, which
+    may use the time scales and history features that the simulator maintains,
+    so that non-Markov processes can be specified directly. Because the hazards
+    are piecewise constant by construction, waiting times are drawn by exact
+    inversion of the cumulative hazard rather than by numerical approximation.
+License: MIT + file LICENSE
+URL: https://github.com/adibender/simpexp
+BugReports: https://github.com/adibender/simpexp/issues
+Depends:
+    R (>= 4.1.0)
+Imports:
+    checkmate,
+    stats
+Suggests:
+    knitr,
+    rmarkdown,
+    survival,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Config/roxygen2/version: 8.1.0
