@@ -45,6 +45,16 @@ check_cut <- function(cut) {
   as.numeric(cut)
 }
 
+# Subset rows of a data frame without the row-name bookkeeping of
+# `[.data.frame`. When `rows` repeats, that bookkeeping (make.unique on the row
+# names, whose result is discarded) dominates the runtime of a simulation.
+take_rows <- function(data, rows, cols = names(data)) {
+  out <- lapply(data[cols], function(col) col[rows])
+  attr(out, "row.names") <- .set_row_names(length(rows))
+  class(out) <- "data.frame"
+  out
+}
+
 # Expand one row per subject into one row per interval of `cut` that lies after
 # the subject's entry time. The first interval of a subject starts at its entry
 # time, so that subjects entering mid-interval are handled exactly.
@@ -61,12 +71,11 @@ expand_intervals <- function(data, cut, entry = rep(0, nrow(data))) {
   times <- n_int - first + 1L
   row   <- rep.int(seq_len(nrow(data)), times)
   int   <- sequence(times, from = first)
-  out   <- data[row, , drop = FALSE]
+  out   <- take_rows(data, row)
   out$.row   <- row
   out$tstart <- pmax(lower[int], entry[row])
   out$tend   <- upper[int]
   out$t      <- out$tend
-  rownames(out) <- NULL
   out
 }
 
@@ -75,6 +84,7 @@ cumsum_by <- function(x, group) {
   cs    <- cumsum(x)
   start <- !duplicated(group)
   # value of the cumulative sum just before each block begins
-  offset <- c(0, cs)[which(start)]
-  cs - rep.int(offset, tabulate(match(group, unique(group))))
+  at     <- which(start)
+  offset <- c(0, cs)[at]
+  cs - rep.int(offset, diff(c(at, length(x) + 1L)))
 }

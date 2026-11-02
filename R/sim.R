@@ -178,7 +178,7 @@ sim_one_state <- function(s, idx, data, hist, trans, str, cut, horizon, covariat
   targets  <- str$to[k]
   rows     <- idx$row
 
-  base <- data[rows, union("id", covariates), drop = FALSE]
+  base <- take_rows(data, rows, union("id", covariates))
   base$t_entry <- idx$entry
   features <- history_features(hist, rows)
   base <- cbind(base, features)
@@ -231,7 +231,7 @@ finalise <- function(episodes, data, covariates, str) {
   out$to   <- factor(out$to, levels = str$states)
   front <- c("id", "episode", "from", "to", "tstart", "tstop", "status", "transition")
   extra <- setdiff(names(out), c(front, ".row"))
-  out <- cbind(out[c(front, extra)], data[out$.row, covariates, drop = FALSE])
+  out <- cbind(out[c(front, extra)], take_rows(data, out$.row, covariates))
   rownames(out) <- NULL
   structure(out, class = c("sim_df", "data.frame"))
 }

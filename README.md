@@ -104,5 +104,6 @@ as offset, and recover the coefficients.
 
 The simulation functions of
 [pammtools](https://github.com/adibender/pammtools) are the origin of this
-package. They will be deprecated there once this package is released, so that
-simulation and model fitting are no longer tied to each other.
+package. This package is developed independently of them: it shares no code and
+no dependency in either direction, so simulation and model fitting are no longer
+tied to each other. pammtools keeps its own `sim_pexp()` for now.
