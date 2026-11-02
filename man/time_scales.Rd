@@ -21,6 +21,9 @@ refer to the same time point.}
 \item{\code{t_entry}}{Time at which the current state was entered.}
 \item{\code{t_sojourn}}{Time spent in the current state, \code{tend - t_entry}
 ("clock reset").}
+\item{\code{interval}}{Index of the current interval in \code{cut}, so that a hazard
+given as one value per interval can be used directly:
+\code{~ log(rates[interval]) + 0.3 * x}.}
 }
 }
 

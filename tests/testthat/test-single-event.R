@@ -31,3 +31,20 @@ test_that("administrative censoring happens at the end of the grid", {
   expect_true(all(is.na(cens$to)))
   expect_gt(nrow(cens), 0)
 })
+
+test_that("a hazard given as one rate per interval can use `interval`", {
+  set.seed(4)
+  cut   <- c(0, 1, 2, 4, 7)
+  rates <- c(0.15, 0.4, 0.25, 0.6)
+  df    <- data.frame(id = 1:8000)
+  sim   <- sim_pexp(~ log(rates[interval]), df, cut = cut)
+
+  # occurrence / exposure per interval must recover the rates
+  ped <- do.call(rbind, lapply(seq_along(rates), function(j) {
+    lo <- cut[j]; hi <- cut[j + 1L]
+    expo <- pmax(pmin(sim$tstop, hi) - lo, 0)
+    data.frame(interval = j, events = sum(sim$status == 1L & sim$tstop > lo & sim$tstop <= hi),
+      expo = sum(expo))
+  }))
+  expect_equal(ped$events / ped$expo, rates, tolerance = 0.08)
+})

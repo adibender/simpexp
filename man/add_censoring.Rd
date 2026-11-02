@@ -18,12 +18,14 @@ returning such a vector. Defaults to exponential censoring times, see
 \item{rate}{Rate of the exponential censoring distribution, used when
 \code{times} is not given.}
 
-\item{keep_censoring_time}{Append the drawn censoring time as a column.}
+\item{keep_censoring_time}{Append the censoring time of each subject as the
+column \code{censoring_time}.}
 }
 \value{
 \code{data} with trajectories cut at the censoring times. Episodes that
 contain the censoring time get \code{status = 0}, \code{to = NA} and \code{tstop} equal to
-the censoring time; later episodes are removed.
+the censoring time; later episodes are removed. Subjects censored before
+their first episode begins drop out entirely.
 }
 \description{
 The simulation itself censors administratively at the end of the time grid.

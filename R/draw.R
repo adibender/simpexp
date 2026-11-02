@@ -51,7 +51,10 @@ draw_waiting_time <- function(rate, tstart, tend, group) {
 # interval of the expanded data.
 draw_target <- function(hazards, interval) {
   h <- hazards[interval, , drop = FALSE]
-  u <- runif(nrow(h)) * rowSums(h)
+  if (ncol(h) == 1L) return(rep.int(1L, nrow(h)))
+  u  <- runif(nrow(h)) * rowSums(h)
+  cs <- h
+  for (j in seq_len(ncol(h))[-1L]) cs[, j] <- cs[, j] + cs[, j - 1L]
   # first column whose cumulative hazard share exceeds the uniform draw
-  max.col(t(apply(h, 1L, cumsum)) >= u, ties.method = "first")
+  max.col(cs >= u, ties.method = "first")
 }

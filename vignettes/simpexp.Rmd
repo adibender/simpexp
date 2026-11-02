@@ -1,0 +1,174 @@
+---
+title: "Getting started"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
+  fig.height = 4, fig.align = "center")
+set.seed(20261102)
+```
+
+```{r}
+library(simpexp)
+```
+
+## The idea
+
+A hazard that is constant on the intervals of a grid determines everything else
+in closed form. Its cumulative hazard is piecewise linear, so the waiting time
+can be drawn by inverting it exactly; and when several transitions compete,
+the hazards are constant within the interval in which the event falls, so the
+transition that is realised can be drawn with probabilities proportional to
+them. No quadrature, no root finding, no rejection step.
+
+The grid is therefore part of the model, not a numerical tuning parameter.
+A hazard that varies quickly needs a fine grid to be represented faithfully --
+and the same grid is the one on which piecewise exponential additive models are
+fitted, which is what makes simulation and estimation speak about the same
+quantities.
+
+## Three interfaces, one engine
+
+Everything is specified by a one-sided formula for the **log**-hazard.
+
+### A single event
+
+```{r}
+df  <- data.frame(x = rnorm(500), trt = rbinom(500, 1, 0.5))
+cut <- seq(0, 10, by = 0.1)
+
+sim <- sim_pexp(~ log(0.1) + 0.05 * t + 0.7 * trt - 0.3 * x, df, cut = cut)
+head(sim)
+```
+
+The output is always in the same long format: one row per episode, with
+`tstart`, `tstop`, `from`, `to`, `status` and the covariates of the input data.
+`status = 0` marks an episode that ended without a transition, and then `to` is
+`NA`. For a single event that is all there is to it -- one episode per subject.
+
+```{r}
+mean(sim$status)
+```
+
+A hazard given as one value per interval needs no closed form at all; the
+variable `interval` is the index of the current interval of `cut`:
+
+```{r}
+rates <- c(0.05, 0.2, 0.35, 0.2, 0.1)
+sim_pexp(~ log(rates[interval]) + 0.5 * trt, df, cut = c(0, 1, 2, 4, 7, 10)) |>
+  head(3)
+```
+
+### Competing risks
+
+One formula per cause; the names become the cause labels.
+
+```{r}
+cr <- sim_pexp_cr(
+  list(relapse = ~ log(0.1) + 0.5 * trt,
+       death   = ~ log(0.03) - 0.2 * x),
+  df, cut = cut)
+table(cr$to, useNA = "ifany")
+```
+
+`to` is `NA` exactly for the administratively censored subjects, which is
+`status == 0`.
+
+### Multi-state processes
+
+A transition is the triple (origin, target, log-hazard). States may recur: the
+engine keeps drawing until every subject has reached a terminal state, been
+censored, or run out of follow-up.
+
+```{r}
+msm_sim <- sim_pexp_msm(
+  list(
+    transition("healthy", "ill",     ~ log(0.4) + 0.3 * x),
+    transition("healthy", "dead",    ~ log(0.02)),
+    transition("ill",     "healthy", ~ log(0.8)),
+    transition("ill",     "dead",    ~ log(0.05) + 0.15 * t_sojourn)
+  ),
+  df, cut = cut)
+
+head(msm_sim, 8)
+table(msm_sim$transition, useNA = "ifany")
+```
+
+States that have no outgoing transition are terminal by default (`dead` here);
+`terminal_states` overrides that.
+
+```{r}
+# how often subjects pass through `ill`
+table(table(msm_sim$id[msm_sim$to == "ill" & !is.na(msm_sim$to)]))
+```
+
+## Starting elsewhere, starting later
+
+Two optional columns of `data` control where a subject starts: `from` gives the
+initial state and `t_entry` the time at which it was entered. The first
+interval of such a subject starts at its entry time, so entering in the middle
+of an interval is handled exactly rather than rounded to the grid.
+
+```{r}
+staggered <- data.frame(
+  id      = 1:6,
+  x       = 0,
+  from    = c("healthy", "healthy", "ill", "ill", "ill", "healthy"),
+  t_entry = c(0, 0, 1.37, 2.5, 4, 0))
+
+sim_pexp_msm(
+  list(
+    transition("healthy", "ill",  ~ log(0.4)),
+    transition("ill",     "dead", ~ log(0.2))),
+  staggered, cut = seq(0, 10, by = 0.5)) |>
+  subset(select = c(id, episode, from, to, tstart, tstop, status))
+```
+
+## Fitting what was simulated
+
+The point of simulating on a grid is that the same grid carries over to
+estimation. Expand the episodes into intervals, fit a Poisson model with the
+log of the interval length as offset, and the coefficients are the ones that
+were put in.
+
+```{r}
+truth <- c(intercept = log(0.2), trt = 0.7, x = -0.3)
+dat   <- data.frame(x = rnorm(3000), trt = rbinom(3000, 1, 0.5))
+sim   <- sim_pexp(~ log(0.2) + 0.7 * trt - 0.3 * x, dat, cut = seq(0, 10, by = 0.5))
+
+# one row per subject and interval at risk
+expand <- function(sim, cut) {
+  lo <- cut[-length(cut)]; hi <- cut[-1L]
+  do.call(rbind, lapply(seq_along(lo), function(j) {
+    at_risk <- sim$tstop > lo[j]
+    d <- sim[at_risk, , drop = FALSE]
+    d$offset <- log(pmin(d$tstop, hi[j]) - lo[j])
+    d$event  <- as.integer(d$status == 1L & d$tstop <= hi[j])
+    d$j      <- j
+    d
+  }))
+}
+ped <- expand(sim, seq(0, 10, by = 0.5))
+
+fit <- glm(event ~ trt + x, offset = offset, family = poisson(), data = ped)
+cbind(truth = truth, estimate = coef(fit), confint.default(fit))
+```
+
+A constant baseline hazard was simulated, so no baseline term is needed here.
+With a time-varying baseline, `j` (or a smooth function of interval midpoints)
+goes into the model -- that is precisely a piecewise exponential additive
+model.
+
+## Where to go next
+
+* `vignette("time-scales")` -- which time scale a hazard may depend on, and
+  how that decides whether the process is Markov, semi-Markov or neither.
+* `vignette("censoring")` -- administrative, random and covariate-dependent
+  censoring.
+* `vignette("validation")` -- the same data-generating process simulated with
+  **simpexp** and with other packages, and the same model fitted to both.

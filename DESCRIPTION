@@ -13,7 +13,7 @@ Description: Simulates single-event, competing-risks and multi-state event
     are piecewise constant by construction, waiting times are drawn by exact
     inversion of the cumulative hazard rather than by numerical approximation.
 License: MIT + file LICENSE
-URL: https://github.com/adibender/simpexp
+URL: https://adibender.github.io/simpexp/, https://github.com/adibender/simpexp
 BugReports: https://github.com/adibender/simpexp/issues
 Depends:
     R (>= 4.1.0)
@@ -21,10 +21,16 @@ Imports:
     checkmate,
     stats
 Suggests:
+    gems,
+    ggplot2,
     knitr,
+    mgcv,
+    msm,
     rmarkdown,
+    simsurv,
     survival,
     testthat (>= 3.0.0)
+VignetteBuilder: knitr
 Config/testthat/edition: 3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

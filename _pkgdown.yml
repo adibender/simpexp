@@ -1,0 +1,54 @@
+url: https://adibender.github.io/simpexp/
+
+template:
+  bootstrap: 5
+
+home:
+  title: Simulate event histories from piecewise exponential hazards
+  description: >
+    Single-event, competing-risks and multi-state event histories simulated by
+    exact inversion of a piecewise constant hazard.
+
+navbar:
+  structure:
+    left:  [intro, articles, reference, news]
+    right: [search, github]
+  components:
+    articles:
+      text: Articles
+      menu:
+      - text: Time scales - Markov, semi-Markov, and neither
+        href: articles/time-scales.html
+      - text: Censoring
+        href: articles/censoring.html
+      - text: Validation against other simulators
+        href: articles/validation.html
+
+reference:
+  - title: Simulate
+    desc: >
+      The three interfaces to the simulation engine. They differ only in how
+      the process is specified; the output format is the same.
+    contents:
+      - sim_pexp
+  - title: Specify
+    desc: >
+      Building blocks of a process specification: a transition, and the
+      variables a hazard formula may depend on.
+    contents:
+      - transition
+      - time_scales
+  - title: Censor
+    contents:
+      - add_censoring
+  - title: Package
+    contents:
+      - simpexp-package
+
+articles:
+  - title: Articles
+    navbar: ~
+    contents:
+      - time-scales
+      - censoring
+      - validation

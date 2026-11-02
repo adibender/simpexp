@@ -11,6 +11,7 @@ Simulates single-event, competing-risks and multi-state event histories from haz
 \seealso{
 Useful links:
 \itemize{
+  \item \url{https://adibender.github.io/simpexp/}
   \item \url{https://github.com/adibender/simpexp}
   \item Report bugs at \url{https://github.com/adibender/simpexp/issues}
 }

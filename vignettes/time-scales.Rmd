@@ -1,0 +1,131 @@
+---
+title: "Time scales: Markov, semi-Markov, and neither"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Time scales: Markov, semi-Markov, and neither}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
+  fig.height = 4, fig.align = "center")
+set.seed(20261102)
+```
+
+```{r}
+library(simpexp)
+```
+
+## What a formula may depend on
+
+The right-hand side of a transition formula is evaluated on the
+interval-expanded data. Besides the covariates of `data`, the simulator
+provides the variables listed in `?time_scales`. Which of them a hazard uses
+decides the probabilistic structure of the process -- nothing else does:
+
+| variable | meaning | resulting process |
+|---|---|---|
+| `t` (`= tend`) | time since the origin of the process | Markov |
+| `t_sojourn` | time already spent in the current state | semi-Markov |
+| `t_entry` | time at which the current state was entered | neither |
+| `n_visits_<state>` | visits to `<state>` so far | neither |
+| `t_total_<state>` | time spent in `<state>` so far | neither |
+| `n_transitions` | transitions made so far | neither |
+| `interval` | index of the current interval of `cut` | -- |
+
+There is no switch to set: writing `t_sojourn` into a formula *is* the
+specification of a semi-Markov process.
+
+## Markov: the clock never resets
+
+```{r}
+df <- data.frame(id = 1:2000)
+
+markov <- sim_pexp_msm(
+  list(
+    transition("healthy", "ill",  ~ log(0.3)),
+    transition("ill", "healthy",  ~ log(0.5)),
+    transition("ill", "dead",     ~ log(0.05) + 0.1 * t)),
+  df, cut = seq(0, 20, by = 0.1))
+```
+
+The hazard of dying while ill grows with calendar time, identically for a
+subject who has just fallen ill and for one who has been ill for years.
+
+## Semi-Markov: the clock resets on entry
+
+```{r}
+semi <- sim_pexp_msm(
+  list(
+    transition("healthy", "ill",  ~ log(0.3)),
+    transition("ill", "healthy",  ~ log(0.5)),
+    transition("ill", "dead",     ~ log(0.05) + 0.4 * t_sojourn)),
+  df, cut = seq(0, 20, by = 0.1))
+```
+
+Now the risk depends on how long *this* episode of illness has lasted. The two
+processes have the same transition structure and differ only in that one
+variable; their sojourn-time distributions are visibly different.
+
+```{r}
+soj <- function(s) {
+  e <- s[s$from == "ill", ]
+  e$tstop - e$tstart
+}
+rbind(markov = summary(soj(markov)), `semi-Markov` = summary(soj(semi)))
+```
+
+Because the semi-Markov hazard rises steeply within an episode, long illness
+episodes are cut short -- the sojourn distribution has a much lighter tail.
+
+## Neither: history dependence
+
+A process that looks back further than the current state is neither Markov nor
+semi-Markov. The history features make that a one-line change.
+
+```{r}
+relapsing <- sim_pexp_msm(
+  list(
+    transition("healthy", "ill",  ~ log(0.3) + 0.25 * n_visits_ill),
+    transition("ill", "healthy",  ~ log(0.5)),
+    transition("ill", "dead",     ~ log(0.03) + 0.1 * t_total_ill)),
+  df, cut = seq(0, 20, by = 0.1), keep_history = TRUE)
+```
+
+Each episode of illness makes the next one more likely, and the accumulated
+time spent ill raises the risk of dying. `keep_history = TRUE` returns the
+feature values the hazards were evaluated with, which is the ground truth of
+the data-generating process:
+
+```{r}
+head(relapsing[c("id", "episode", "from", "to", "tstart", "tstop",
+                 "n_visits_ill", "t_total_ill")], 8)
+```
+
+That the mechanism really bites can be read off the data: the rate of becoming
+ill again, by the number of previous illness episodes.
+
+```{r}
+healthy <- relapsing[relapsing$from == "healthy", ]
+healthy$k <- healthy$n_visits_ill
+tab <- do.call(rbind, lapply(sort(unique(healthy$k)), function(k) {
+  d <- healthy[healthy$k == k, ]
+  data.frame(n_visits_ill = k, episodes = nrow(d),
+    rate = sum(d$to == "ill", na.rm = TRUE) / sum(d$tstop - d$tstart),
+    implied = 0.3 * exp(0.25 * k))
+}))
+print(tab[tab$episodes > 30, ], digits = 3, row.names = FALSE)
+```
+
+The empirical occurrence/exposure rates track `0.3 * exp(0.25 * k)`, which is
+what the formula asked for.
+
+## Why oracle features matter
+
+In a simulation study the interesting question is usually whether a method can
+*recover* a dependence of this kind from the observed trajectories. Having the
+true feature values alongside the data separates two failure modes: a model
+that cannot represent the dependence, and a model that can but does not find
+it. Fitting with the oracle features gives the ceiling against which a
+data-driven model is measured.

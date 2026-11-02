@@ -20,11 +20,13 @@
 #'   `rate`.
 #' @param rate Rate of the exponential censoring distribution, used when
 #'   `times` is not given.
-#' @param keep_censoring_time Append the drawn censoring time as a column.
+#' @param keep_censoring_time Append the censoring time of each subject as the
+#'   column `censoring_time`.
 #'
 #' @return `data` with trajectories cut at the censoring times. Episodes that
 #'   contain the censoring time get `status = 0`, `to = NA` and `tstop` equal to
-#'   the censoring time; later episodes are removed.
+#'   the censoring time; later episodes are removed. Subjects censored before
+#'   their first episode begins drop out entirely.
 #'
 #' @examples
 #' df  <- data.frame(x = rnorm(100))

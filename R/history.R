@@ -26,6 +26,9 @@ history_features <- function(hist, rows) {
   out
 }
 
+# Record one round: add the time just spent in `from` to the time budget of that
+# state and, for the subjects that actually moved, count the visit to `to` and
+# the transition. Censored subjects contribute time but no transition.
 update_history <- function(hist, rows, from, to, status, duration) {
   j_from <- match(from, hist$states)
   hist$t_total[cbind(rows, j_from)] <- hist$t_total[cbind(rows, j_from)] + duration

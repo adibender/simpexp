@@ -49,8 +49,9 @@ are used as the cause labels, otherwise causes are numbered.}
 that have no outgoing transition.}
 
 \item{censoring_states}{States that end a trajectory with \code{status = 0}, i.e.
-that encode censoring as a competing event. See \code{vignette} examples in
-\code{\link[=add_censoring]{add_censoring()}}.}
+that encode censoring as a competing event. This is how censoring that
+depends on covariates or on the state of the process is expressed; see
+\code{\link[=add_censoring]{add_censoring()}} for censoring applied after the fact.}
 
 \item{max_transitions}{Guard against processes that never reach a terminal
 state; a warning is issued if it is hit.}

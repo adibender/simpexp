@@ -29,8 +29,9 @@
 #' @param terminal_states States that end a trajectory. Defaults to all states
 #'   that have no outgoing transition.
 #' @param censoring_states States that end a trajectory with `status = 0`, i.e.
-#'   that encode censoring as a competing event. See `vignette` examples in
-#'   [add_censoring()].
+#'   that encode censoring as a competing event. This is how censoring that
+#'   depends on covariates or on the state of the process is expressed; see
+#'   [add_censoring()] for censoring applied after the fact.
 #' @param max_transitions Guard against processes that never reach a terminal
 #'   state; a warning is issued if it is hit.
 #' @param keep_history Append the history features that the hazards were

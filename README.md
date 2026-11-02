@@ -59,6 +59,7 @@ simply a matter of which variable the formula uses:
 | `n_visits_<state>` | visits to a state so far | neither |
 | `t_total_<state>` | time spent in a state so far | neither |
 | `n_transitions` | transitions so far | neither |
+| `interval` | index of the current interval of `cut` | — |
 
 ```r
 # the hazard of dying rises with every previous illness episode
@@ -91,6 +92,22 @@ sim_pexp_msm(
   df, cut, censoring_states = "lost")
 ```
 
+## Validation
+
+Every claim above is checked against something independent. The article
+[*Validation against other simulators*](https://adibender.github.io/simpexp/articles/validation.html)
+implements the same data-generating process in **simpexp** and in another
+package, fits one and the same model to both samples, and compares the
+estimates with each other and with the closed form where one exists:
+
+| case | reference |
+|---|---|
+| single event, piecewise constant hazard | `msm::rpexp` |
+| single event, Weibull hazard | `simsurv` (inversion of the continuous hazard) |
+| competing risks | closed-form probabilities, latent failure times |
+| multi-state, Markov | `msm::sim.msm`, with an `msm` model fitted to both |
+| multi-state, semi-Markov | `gems` |
+
 ## Fitting back what was simulated
 
 The hazards are specified under the same convention under which piecewise
@@ -99,6 +116,14 @@ evaluated at `tend` — so a model fitted to the simulated data estimates the
 quantity that was specified. `tests/testthat/test-roundtrip.R` does exactly
 that: expand the episodes into intervals, fit a Poisson model with log exposure
 as offset, and recover the coefficients.
+
+## Documentation
+
+* [Getting started](https://adibender.github.io/simpexp/articles/simpexp.html)
+* [Time scales: Markov, semi-Markov, and neither](https://adibender.github.io/simpexp/articles/time-scales.html)
+* [Censoring](https://adibender.github.io/simpexp/articles/censoring.html)
+* [Validation against other simulators](https://adibender.github.io/simpexp/articles/validation.html)
+* [Function reference](https://adibender.github.io/simpexp/reference/)
 
 ## Relation to pammtools
 

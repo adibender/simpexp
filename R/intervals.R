@@ -16,6 +16,9 @@
 #'   \item{`t_entry`}{Time at which the current state was entered.}
 #'   \item{`t_sojourn`}{Time spent in the current state, `tend - t_entry`
 #'     ("clock reset").}
+#'   \item{`interval`}{Index of the current interval in `cut`, so that a hazard
+#'     given as one value per interval can be used directly:
+#'     `~ log(rates[interval]) + 0.3 * x`.}
 #' }
 #'
 #' @section History features:
@@ -76,6 +79,7 @@ expand_intervals <- function(data, cut, entry = rep(0, nrow(data))) {
   out$tstart <- pmax(lower[int], entry[row])
   out$tend   <- upper[int]
   out$t      <- out$tend
+  out$interval <- int
   out
 }
 

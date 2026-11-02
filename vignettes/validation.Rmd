@@ -1,0 +1,408 @@
+---
+title: "Validation against other simulators"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Validation against other simulators}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
+  fig.height = 4, fig.align = "center")
+set.seed(20261102)
+has <- function(...) all(vapply(c(...), requireNamespace, logical(1), quietly = TRUE))
+```
+
+```{r}
+library(simpexp)
+```
+
+A simulator is only useful if one can trust what it produces. This vignette
+checks **simpexp** in the strongest form available: the same data-generating
+process is implemented in **simpexp** and in another, independent package, the
+same model is fitted to both samples, and the estimates are compared with each
+other and -- wherever it exists -- with the closed-form truth.
+
+Where a closed form exists it is the reference, not the other simulator. Two
+simulators agreeing with each other is weaker evidence than both agreeing with
+an exact calculation.
+
+## 1. Single event: `msm::rpexp`
+
+`msm::rpexp()` draws piecewise exponential times by exactly the same inversion
+argument, and is an independent implementation of it. The difference is
+interface rather than method: it takes one rate vector per call, so with
+covariates it has to be called once per subject.
+
+```{r, eval = has("msm", "survival")}
+library(msm); library(survival)
+
+cut   <- c(0, 1, 2, 3, 4, 6, 8, 10)
+lrate <- c(-2.2, -1.8, -1.5, -1.9, -2.4, -2.0, -1.7)   # log baseline per interval
+beta  <- 0.6
+n     <- 4000
+
+sim_simpexp <- function(dat)
+  sim_pexp(~ lrate[interval] + beta * x, dat, cut = cut)
+
+sim_rpexp <- function(dat) {
+  tt <- vapply(dat$x, function(xi) {
+    r <- exp(lrate + beta * xi)
+    msm::rpexp(1, c(r, r[length(r)]), cut)
+  }, 0)
+  data.frame(id = dat$id, x = dat$x, tstop = pmin(tt, 10),
+    status = as.integer(tt <= 10))
+}
+
+B <- 10
+est <- vapply(seq_len(B), function(b) {
+  set.seed(1000 + b)
+  dat <- data.frame(id = 1:n, x = rbinom(n, 1, 0.5))
+  c(simpexp = coef(coxph(Surv(tstop, status) ~ x, sim_simpexp(dat))),
+    rpexp   = coef(coxph(Surv(tstop, status) ~ x, sim_rpexp(dat))))
+}, numeric(2))
+
+data.frame(
+  source   = c("simpexp", "msm::rpexp"),
+  estimate = rowMeans(est),
+  mc_se    = apply(est, 1, sd) / sqrt(B),
+  truth    = beta,
+  row.names = NULL)
+```
+
+Both recover the log hazard ratio, and the Monte-Carlo standard errors show
+that the remaining difference is noise. The two samples are also
+distributionally indistinguishable:
+
+```{r, eval = has("msm", "survival")}
+set.seed(42)
+dat <- data.frame(id = 1:20000, x = rbinom(20000, 1, 0.5))
+a <- sim_simpexp(dat); b <- sim_rpexp(dat)
+suppressWarnings(ks.test(a$tstop, b$tstop))
+```
+
+The price of the per-subject interface is speed. For 100&nbsp;000 subjects on
+this grid, `rpexp()` called once per subject takes about 650&nbsp;ms, against
+about 8&nbsp;ms for the vectorised draw inside **simpexp** -- same algorithm,
+same output, two orders of magnitude apart, because the loop pays R's call
+overhead per subject.
+
+## 2. A continuous hazard: `simsurv`
+
+**simpexp** approximates a continuous hazard by a step function; **simsurv**
+inverts the continuous cumulative hazard itself. The discretisation is then
+the only difference between them, and it is instructive to watch it vanish as
+the grid is refined. The data-generating process is Weibull,
+$h(t) = \lambda\gamma t^{\gamma-1}e^{\beta x}$, and the fitted model is a
+Weibull regression -- the correct parametric model for the continuous version,
+and hence a model that *should* expose any discretisation bias.
+
+```{r, eval = has("simsurv", "survival")}
+library(simsurv)
+
+lambda <- 0.08; gamma <- 1.4; beta_x <- -0.5
+n <- 5000
+log_h <- function(t, x) log(lambda * gamma) + (gamma - 1) * log(t) + beta_x * x
+
+weib_fit <- function(time, status, x) {
+  m  <- survreg(Surv(time, status) ~ x, dist = "weibull")
+  sh <- 1 / m$scale
+  c(shape = sh, lambda = exp(-sh * coef(m)[["(Intercept)"]]),
+    beta = -coef(m)[["x"]] * sh, se_beta = sh * sqrt(vcov(m)["x", "x"]))
+}
+
+set.seed(7)
+dat <- data.frame(id = 1:n, x = rnorm(n))
+ss  <- simsurv(dist = "weibull", lambdas = lambda, gammas = gamma,
+               betas = c(x = beta_x), x = dat, maxt = 10)
+ss  <- merge(ss, dat, by = "id")
+
+rows <- list(truth   = c(shape = gamma, lambda = lambda, beta = beta_x, se_beta = NA),
+             simsurv = weib_fit(ss$eventtime, ss$status, ss$x))
+for (by in c(1, 0.25, 0.05)) {
+  sp <- sim_pexp(~ log_h(t, x), dat, cut = seq(0, 10, by = by))
+  rows[[paste0("simpexp, by = ", by)]] <- weib_fit(sp$tstop, sp$status, sp$x)
+}
+round(do.call(rbind, rows), 4)
+```
+
+The shape parameter is the quantity the grid costs: a step function cannot
+reproduce a power-law hazard on coarse intervals, and the fitted shape is
+pulled towards 1. Refining the grid removes it. The covariate effect, in
+contrast, moves only within its own standard error (`se_beta`) -- discretising
+the baseline does not bias the proportional effect, which is the usual reason
+a coarse grid is tolerable in practice.
+
+Averaged over replications, the two simulators agree with the truth and with
+each other:
+
+```{r, eval = has("simsurv", "survival")}
+B <- 10; n <- 4000
+cuts <- seq(0, 10, by = 0.02)
+est <- vapply(seq_len(B), function(b) {
+  set.seed(2000 + b)
+  dat <- data.frame(id = 1:n, x = rnorm(n))
+  ss  <- simsurv(dist = "weibull", lambdas = lambda, gammas = gamma,
+                 betas = c(x = beta_x), x = dat, maxt = 10)
+  ss  <- merge(ss, dat, by = "id")
+  sp  <- sim_pexp(~ log_h(t, x), dat, cut = cuts)
+  c(simsurv = coef(coxph(Surv(eventtime, status) ~ x, ss)),
+    simpexp = coef(coxph(Surv(tstop, status) ~ x, sp)))
+}, numeric(2))
+data.frame(source = c("simsurv", "simpexp"), estimate = rowMeans(est),
+  mc_se = apply(est, 1, sd) / sqrt(B), truth = beta_x, row.names = NULL)
+```
+
+## 3. Competing risks: latent failure times, and the closed form
+
+For competing risks there are two textbook constructions. One draws a latent
+failure time per cause from the cause-specific hazard and keeps the minimum;
+the other -- the one **simpexp** uses -- draws the waiting time from the
+all-cause hazard and then the cause with probabilities
+$h_j(t)/\sum_k h_k(t)$. Under independent latent times the two give the same
+cause-specific hazards, so they must produce the same data.
+
+With piecewise constant hazards, the exact probabilities are available, so all
+of this can be checked against a calculation rather than against another
+sample. For a subject with covariate $x$:
+
+$$P(\text{cause } j) \;=\; \sum_{\text{intervals } l} \frac{h_{jl}}{\sum_k h_{kl}}
+  \Bigl( e^{-H(\kappa_{l-1})} - e^{-H(\kappa_l)} \Bigr),$$
+
+with $H$ the all-cause cumulative hazard.
+
+```{r, eval = has("msm")}
+cut   <- c(0, 1, 2, 3, 5, 8, 12)
+r_rel <- c(0.10, 0.22, 0.18, 0.12, 0.08, 0.05)
+r_dth <- c(0.04, 0.05, 0.06, 0.08, 0.10, 0.12)
+b_rel <- 0.5; b_dth <- -0.3
+dt    <- diff(cut)
+
+n <- 50000
+set.seed(7); dat <- data.frame(id = 1:n, x = rnorm(n))
+
+# exact probabilities, for this very covariate vector
+exact <- rowMeans(vapply(dat$x, function(xi) {
+  a <- r_rel * exp(b_rel * xi); b <- r_dth * exp(b_dth * xi)
+  ra <- a + b; H <- c(0, cumsum(ra * dt))
+  p  <- exp(-head(H, -1)) - exp(-H[-1])
+  c(cens = exp(-H[length(H)]), relapse = sum(a / ra * p), death = sum(b / ra * p))
+}, numeric(3)))
+
+# simpexp: all-cause hazard, then the cause
+sp <- sim_pexp_cr(list(relapse = ~ log(r_rel[interval]) + b_rel * x,
+                       death   = ~ log(r_dth[interval]) + b_dth * x),
+                  dat, cut = cut)
+sp_share <- prop.table(table(ifelse(sp$status == 0L, "cens", as.character(sp$to))))
+
+# latent failure times: one piecewise exponential time per cause, minimum wins
+one <- function(rates, bb) vapply(dat$x, function(xi)
+  msm::rpexp(1, c(rates, rates[length(rates)]) * exp(bb * xi), cut), 0)
+t1 <- one(r_rel, b_rel); t2 <- one(r_dth, b_dth)
+tt <- pmin(t1, t2, 12)
+lat_share <- prop.table(table(
+  ifelse(tt == 12, "cens", ifelse(t1 < t2, "relapse", "death"))))
+
+round(rbind(exact = exact,
+            simpexp = sp_share[names(exact)],
+            latent  = lat_share[names(exact)]), 4)
+```
+
+All three agree to within the Monte-Carlo error of a share at this sample size
+(about `r sprintf("%.4f", sqrt(0.25 / 50000))`). The same holds for the
+cause-specific regression coefficients, fitted with one and the same model to
+both samples:
+
+```{r, eval = has("msm", "survival")}
+cs_cox <- function(time, cause, x)
+  c(relapse = coef(coxph(Surv(time, cause == "relapse") ~ x)),
+    death   = coef(coxph(Surv(time, cause == "death") ~ x)))
+
+B <- 10; n <- 3000
+est <- lapply(seq_len(B), function(b) {
+  set.seed(500 + b)
+  dat <- data.frame(id = 1:n, x = rnorm(n))
+  sp <- sim_pexp_cr(list(relapse = ~ log(r_rel[interval]) + b_rel * x,
+                         death   = ~ log(r_dth[interval]) + b_dth * x),
+                    dat, cut = cut)
+  one <- function(rates, bb) vapply(dat$x, function(xi)
+    msm::rpexp(1, c(rates, rates[length(rates)]) * exp(bb * xi), cut), 0)
+  t1 <- one(r_rel, b_rel); t2 <- one(r_dth, b_dth); tt <- pmin(t1, t2, 12)
+  rbind(
+    simpexp = cs_cox(sp$tstop, ifelse(sp$status == 0L, "cens", as.character(sp$to)), sp$x),
+    latent  = cs_cox(tt, ifelse(tt == 12, "cens", ifelse(t1 < t2, "relapse", "death")), dat$x))
+})
+arr <- simplify2array(est)                     # simulator x coefficient x rep
+m   <- apply(arr, 1:2, mean)
+se  <- apply(arr, 1:2, sd) / sqrt(B)
+colnames(m) <- colnames(se) <- c("relapse", "death")
+round(rbind(truth = c(relapse = b_rel, death = b_dth), m,
+            `mc se (simpexp)` = se["simpexp", ],
+            `mc se (latent)`  = se["latent", ]), 4)
+```
+
+## 4. Multi-state, Markov: `msm::sim.msm` and a fitted `msm` model
+
+Here the comparison can be made in the most direct way imaginable: simulate a
+time-homogeneous illness-death process with recovery, once with
+`msm::sim.msm()` and once with **simpexp**, then fit the *same* `msm` model
+with exact transition times to both data sets and compare the estimated
+intensity matrices.
+
+```{r, eval = has("msm")}
+q <- rbind(c(0, 0.35, 0.05), c(0.50, 0, 0.12), c(0, 0, 0))
+states <- c("healthy", "ill", "dead")
+dimnames(q) <- list(states, states)
+maxt <- 10; n <- 1500
+set.seed(11)
+
+panel_from_msm <- function(n) {
+  d <- do.call(rbind, lapply(seq_len(n), function(i) {
+    s <- msm::sim.msm(q, maxtime = maxt)
+    data.frame(id = i, time = s$times, state = s$states)
+  }))
+  d
+}
+
+panel_from_simpexp <- function(n) {
+  s <- sim_pexp_msm(list(
+    transition("healthy", "ill",     ~ log(0.35)),
+    transition("healthy", "dead",    ~ log(0.05)),
+    transition("ill",     "healthy", ~ log(0.50)),
+    transition("ill",     "dead",    ~ log(0.12))),
+    data.frame(id = seq_len(n)), cut = c(0, maxt))
+  first <- s[s$episode == 1L, c("id", "tstart", "from")]
+  moved <- s[s$status == 1L,  c("id", "tstop", "to")]
+  stuck <- s[s$status == 0L,  c("id", "tstop", "from")]   # censored: state unchanged
+  names(first) <- names(moved) <- names(stuck) <- c("id", "time", "state")
+  d <- rbind(first, moved, stuck)
+  d$state <- match(as.character(d$state), states)
+  d[order(d$id, d$time), ]
+}
+
+fit_msm <- function(d) {
+  m <- msm::msm(state ~ time, subject = id, data = d, qmatrix = q,
+                exacttimes = TRUE, control = list(fnscale = 4000))
+  qq <- msm::qmatrix.msm(m, ci = "none")
+  c(`healthy->ill` = qq[1, 2], `healthy->dead` = qq[1, 3],
+    `ill->healthy` = qq[2, 1], `ill->dead` = qq[2, 3])
+}
+
+B <- 5
+est <- lapply(seq_len(B), function(b) {
+  set.seed(300 + b)
+  rbind(`msm::sim.msm` = fit_msm(panel_from_msm(n)),
+        simpexp        = fit_msm(panel_from_simpexp(n)))
+})
+arr <- simplify2array(est)
+m   <- apply(arr, 1:2, mean); se <- apply(arr, 1:2, sd) / sqrt(B)
+round(rbind(truth = c(0.35, 0.05, 0.50, 0.12), m,
+            `mc se (msm)`     = se["msm::sim.msm", ],
+            `mc se (simpexp)` = se["simpexp", ]), 4)
+```
+
+The transition counts match as well (one replication; the diagonal holds the
+censored observations, whose state is unchanged at their last observation
+time):
+
+```{r, eval = has("msm")}
+set.seed(301)
+list(`msm::sim.msm` = msm::statetable.msm(state, id, panel_from_msm(n)),
+     simpexp        = msm::statetable.msm(state, id, panel_from_simpexp(n)))
+```
+
+## 5. Multi-state, semi-Markov: `gems`
+
+**gems** builds a multi-state process from latent transition times on the
+clock-reset scale: for each possible transition out of the current state it
+draws a sojourn time from a parametric distribution and takes the minimum.
+That makes it an independent check of the semi-Markov case. The process below
+is a progressive illness-death model -- `gems` stores one entry time per state
+and therefore cannot represent recurrence, so recovery is left out here.
+
+The sojourn time in `ill` before death is Weibull with shape 1.6, which in
+**simpexp** is written as the Weibull hazard in `t_sojourn`.
+
+```{r, eval = has("gems", "survival")}
+library(gems)
+sh <- 1.6; sc <- 6; r_hi <- 0.35; r_hd <- 0.05
+maxt <- 10; n <- 4000
+
+run_gems <- function(n, seed) {
+  set.seed(seed)
+  hf <- generateHazardMatrix(3)
+  hf[[1, 2]] <- "Exponential"; hf[[1, 3]] <- "Exponential"; hf[[2, 3]] <- "Weibull"
+  pm <- generateParameterMatrix(hf)
+  pm[[1, 2]] <- list(r_hi); pm[[1, 3]] <- list(r_hd); pm[[2, 3]] <- list(sh, sc)
+  suppressMessages(
+    g <- simulateCohort(transitionFunctions = hf, parameters = pm,
+                        cohortSize = n, to = maxt))
+  tt <- as.data.frame(g@time.to.state)
+  data.frame(id = seq_len(n), t_ill = tt[[2]], t_dead = tt[[3]])
+}
+
+run_simpexp <- function(n, seed, by = 0.02) {
+  set.seed(seed)
+  s <- sim_pexp_msm(list(
+    transition("healthy", "ill",  ~ log(r_hi)),
+    transition("healthy", "dead", ~ log(r_hd)),
+    transition("ill",     "dead", ~ log(sh / sc) + (sh - 1) * log(t_sojourn / sc))),
+    data.frame(id = seq_len(n)), cut = seq(0, maxt, by = by))
+  ill  <- s[s$from == "healthy" & !is.na(s$to) & s$to == "ill", ]
+  dead <- s[!is.na(s$to) & s$to == "dead", ]
+  data.frame(id = seq_len(n),
+    t_ill  = ill$tstop[match(seq_len(n), ill$id)],
+    t_dead = dead$tstop[match(seq_len(n), dead$id)])
+}
+```
+
+One and the same analysis is applied to both: occurrence/exposure rates for
+the two exits out of `healthy`, and a Weibull model for the sojourn time in
+`ill`.
+
+```{r, eval = has("gems", "survival")}
+analyse <- function(d) {
+  d$t_ill[!is.na(d$t_ill) & d$t_ill > maxt]     <- NA
+  d$t_dead[!is.na(d$t_dead) & d$t_dead > maxt]  <- NA
+  exit  <- pmin(ifelse(is.na(d$t_ill),  Inf, d$t_ill),
+                ifelse(is.na(d$t_dead), Inf, d$t_dead), maxt)
+  n_ill <- sum(!is.na(d$t_ill))
+  n_dth <- sum(!is.na(d$t_dead) & (is.na(d$t_ill) | d$t_dead < d$t_ill))
+  ill   <- d[!is.na(d$t_ill), ]
+  soj   <- pmin(ifelse(is.na(ill$t_dead), maxt, ill$t_dead), maxt) - ill$t_ill
+  ev    <- as.integer(!is.na(ill$t_dead) & ill$t_dead <= maxt)
+  k     <- soj > 0
+  m     <- survreg(Surv(soj[k], ev[k]) ~ 1, dist = "weibull")
+  c(`healthy->ill` = n_ill / sum(exit), `healthy->dead` = n_dth / sum(exit),
+    `sojourn shape` = 1 / m$scale,
+    `sojourn scale` = exp(coef(m)[["(Intercept)"]]))
+}
+
+B <- 10
+G <- vapply(seq_len(B), function(b) analyse(run_gems(n, 100 + b)), numeric(4))
+S <- vapply(seq_len(B), function(b) analyse(run_simpexp(n, 100 + b)), numeric(4))
+round(rbind(truth = c(r_hi, r_hd, sh, sc),
+            gems = rowMeans(G), simpexp = rowMeans(S),
+            `mc se (gems)` = apply(G, 1, sd) / sqrt(B),
+            `mc se (simpexp)` = apply(S, 1, sd) / sqrt(B)), 4)
+```
+
+Both simulators reproduce the exponential exit rates out of `healthy` and the
+Weibull sojourn distribution in `ill`, within Monte-Carlo error.
+
+## Summary
+
+| comparison | reference | agreement |
+|---|---|---|
+| single event, piecewise constant | `msm::rpexp` + exact inversion | within MC error |
+| single event, Weibull | `simsurv` (continuous inversion) | within MC error, grid refines away the discretisation |
+| competing risks | closed form + latent failure times | within MC error |
+| multi-state, Markov | `msm::sim.msm`, fitted `msm` model | within MC error |
+| multi-state, semi-Markov | `gems` | within MC error |
+
+The internal test suite adds the checks that do not need another package:
+Kolmogorov-Smirnov tests against the exponential and Weibull distributions,
+the cause shares against $h_j/\sum_k h_k$, and a round trip in which a
+piecewise exponential model refitted to the simulated data recovers the
+coefficients that generated it.
