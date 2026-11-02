@@ -49,4 +49,4 @@ variables are available.
 
 A process whose hazards use only `t` is Markov; one that uses
 `t_sojourn` is semi-Markov; one that uses the history features is
-neither.
+non-Markov.

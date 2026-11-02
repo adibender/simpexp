@@ -50,7 +50,7 @@ All three return the same long format, one row per episode:
 `status = 0` marks an episode that ended without a transition, with `to`
 missing.
 
-## Markov, semi-Markov, neither
+## Markov, semi-Markov, non-Markov
 
 What a hazard may depend on is what distinguishes the three cases, and
 it is simply a matter of which variable the formula uses:
@@ -59,10 +59,10 @@ it is simply a matter of which variable the formula uses:
 |--------------------|----------------------------------------|-------------|
 | `t` (= `tend`)     | time since the origin                  | Markov      |
 | `t_sojourn`        | time in the current state              | semi-Markov |
-| `t_entry`          | time the current state was entered     | neither     |
-| `n_visits_<state>` | visits to a state so far               | neither     |
-| `t_total_<state>`  | time spent in a state so far           | neither     |
-| `n_transitions`    | transitions so far                     | neither     |
+| `t_entry`          | time the current state was entered     | non-Markov  |
+| `n_visits_<state>` | visits to a state so far               | non-Markov  |
+| `t_total_<state>`  | time spent in a state so far           | non-Markov  |
+| `n_transitions`    | transitions so far                     | non-Markov  |
 | `interval`         | index of the current interval of `cut` | —           |
 
 ``` r
@@ -131,8 +131,8 @@ recover the coefficients.
 
 - [Getting
   started](https://adibender.github.io/simpexp/articles/simpexp.html)
-- [Time scales: Markov, semi-Markov, and
-  neither](https://adibender.github.io/simpexp/articles/time-scales.html)
+- [Time scales: Markov, semi-Markov,
+  non-Markov](https://adibender.github.io/simpexp/articles/time-scales.html)
 - [Censoring](https://adibender.github.io/simpexp/articles/censoring.html)
 - [Validation against other
   simulators](https://adibender.github.io/simpexp/articles/validation.html)
@@ -185,8 +185,8 @@ variables a hazard formula may depend on.
 
 ### Articles
 
-- [Time scales: Markov, semi-Markov, and
-  neither](https://adibender.github.io/simpexp/articles/time-scales.md):
+- [Time scales: Markov, semi-Markov,
+  non-Markov](https://adibender.github.io/simpexp/articles/time-scales.md):
 - [Censoring](https://adibender.github.io/simpexp/articles/censoring.md):
 - [Validation against other
   simulators](https://adibender.github.io/simpexp/articles/validation.md):

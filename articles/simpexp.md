@@ -220,7 +220,7 @@ exponential additive model.
 
 - [`vignette("time-scales")`](https://adibender.github.io/simpexp/articles/time-scales.md)
   – which time scale a hazard may depend on, and how that decides
-  whether the process is Markov, semi-Markov or neither.
+  whether the process is Markov, semi-Markov or non-Markov.
 - [`vignette("censoring")`](https://adibender.github.io/simpexp/articles/censoring.md)
   – administrative, random and covariate-dependent censoring.
 - [`vignette("validation")`](https://adibender.github.io/simpexp/articles/validation.md)

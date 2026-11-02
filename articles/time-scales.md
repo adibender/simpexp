@@ -1,4 +1,4 @@
-# Time scales: Markov, semi-Markov, and neither
+# Time scales: Markov, semi-Markov, non-Markov
 
 ``` r
 
@@ -18,10 +18,10 @@ process – nothing else does:
 |----|----|----|
 | `t` (`= tend`) | time since the origin of the process | Markov |
 | `t_sojourn` | time already spent in the current state | semi-Markov |
-| `t_entry` | time at which the current state was entered | neither |
-| `n_visits_<state>` | visits to `<state>` so far | neither |
-| `t_total_<state>` | time spent in `<state>` so far | neither |
-| `n_transitions` | transitions made so far | neither |
+| `t_entry` | time at which the current state was entered | non-Markov |
+| `n_visits_<state>` | visits to `<state>` so far | non-Markov |
+| `t_total_<state>` | time spent in `<state>` so far | non-Markov |
+| `n_transitions` | transitions made so far | non-Markov |
 | `interval` | index of the current interval of `cut` | – |
 
 There is no switch to set: writing `t_sojourn` into a formula *is* the
@@ -78,11 +78,11 @@ Because the semi-Markov hazard rises steeply within an episode, long
 illness episodes are cut short – the sojourn distribution has a much
 lighter tail.
 
-## Neither: history dependence
+## Non-Markov: history dependence
 
-A process that looks back further than the current state is neither
-Markov nor semi-Markov. The history features make that a one-line
-change.
+A process whose hazards look further back than the current state and the
+time spent in it is non-Markov. The history features make that a
+one-line change.
 
 ``` r
 

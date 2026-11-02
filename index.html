@@ -36,7 +36,7 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="articles/time-scales.html">Time scales - Markov, semi-Markov, and neither</a></li>
+<li><a class="dropdown-item" href="articles/time-scales.html">Time scales - Markov, semi-Markov, non-Markov</a></li>
     <li><a class="dropdown-item" href="articles/censoring.html">Censoring</a></li>
     <li><a class="dropdown-item" href="articles/validation.html">Validation against other simulators</a></li>
   </ul>
@@ -105,7 +105,7 @@
 <p><code>status = 0</code> marks an episode that ended without a transition, with <code>to</code> missing.</p>
 </div>
 <div class="section level2">
-<h2 id="markov-semi-markov-neither">Markov, semi-Markov, neither<a class="anchor" aria-label="anchor" href="#markov-semi-markov-neither"></a>
+<h2 id="markov-semi-markov-non-markov">Markov, semi-Markov, non-Markov<a class="anchor" aria-label="anchor" href="#markov-semi-markov-non-markov"></a>
 </h2>
 <p>What a hazard may depend on is what distinguishes the three cases, and it is simply a matter of which variable the formula uses:</p>
 <table class="table">
@@ -129,22 +129,22 @@
 <tr>
 <td><code>t_entry</code></td>
 <td>time the current state was entered</td>
-<td>neither</td>
+<td>non-Markov</td>
 </tr>
 <tr>
 <td><code>n_visits_&lt;state&gt;</code></td>
 <td>visits to a state so far</td>
-<td>neither</td>
+<td>non-Markov</td>
 </tr>
 <tr>
 <td><code>t_total_&lt;state&gt;</code></td>
 <td>time spent in a state so far</td>
-<td>neither</td>
+<td>non-Markov</td>
 </tr>
 <tr>
 <td><code>n_transitions</code></td>
 <td>transitions so far</td>
-<td>neither</td>
+<td>non-Markov</td>
 </tr>
 <tr>
 <td><code>interval</code></td>
@@ -223,7 +223,7 @@
 </h2>
 <ul>
 <li><a href="https://adibender.github.io/simpexp/articles/simpexp.html">Getting started</a></li>
-<li><a href="https://adibender.github.io/simpexp/articles/time-scales.html">Time scales: Markov, semi-Markov, and neither</a></li>
+<li><a href="https://adibender.github.io/simpexp/articles/time-scales.html">Time scales: Markov, semi-Markov, non-Markov</a></li>
 <li><a href="https://adibender.github.io/simpexp/articles/censoring.html">Censoring</a></li>
 <li><a href="https://adibender.github.io/simpexp/articles/validation.html">Validation against other simulators</a></li>
 <li><a href="https://adibender.github.io/simpexp/reference/">Function reference</a></li>
