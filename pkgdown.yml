@@ -1,0 +1,12 @@
+pandoc: 3.8.3
+pkgdown: 2.2.1
+pkgdown_sha: ~
+articles:
+  censoring: censoring.html
+  simpexp: simpexp.html
+  time-scales: time-scales.html
+  validation: validation.html
+last_built: 2026-11-02T14:19Z
+urls:
+  reference: https://adibender.github.io/simpexp/reference
+  article: https://adibender.github.io/simpexp/articles
